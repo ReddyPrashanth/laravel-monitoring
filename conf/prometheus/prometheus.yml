@@ -1,0 +1,40 @@
+# prometheus/prometheus.yml
+global:
+  scrape_interval: 15s # How often to scrape targets
+  evaluation_interval: 15s # How often to evaluate rules
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml # Path to alert rules
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Scrape the Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Scrape Node Exporter (System Metrics)
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Scrape Blackbox Exporter (API Monitoring)
+  - job_name: "blackbox"
+    metrics_path: /probe
+    params:
+      module: [http_2xx] # Monitor HTTP status codes 200-299
+    static_configs:
+      - targets:
+          # Replace with your API URL
+          - http://app:80/up
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115 # Blackbox Exporter target

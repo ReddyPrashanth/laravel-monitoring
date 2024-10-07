@@ -1,0 +1,18 @@
+global:
+  resolve_timeout: 5m # How long to wait before resolving an alert
+
+route:
+  receiver: "email_notifications"
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+
+receivers:
+  - name: "email_notifications"
+    email_configs:
+      - to: "TO_ADDRESS"
+        from: "FROM_ADDRESS"
+        smarthost: "MAIL_HOST"
+        auth_username: "MAIL_USERNAME"
+        auth_password: "MAIL_PASSWORD"
+        require_tls: false

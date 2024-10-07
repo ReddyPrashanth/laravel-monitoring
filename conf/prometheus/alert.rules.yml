@@ -1,0 +1,44 @@
+groups:
+  - name: node_exporter_alerts
+    rules:
+      # Alert for High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage has been over 90% for more than 5 minutes."
+
+      # Alert for Low Available Memory
+      - alert: LowMemory
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low memory available on {{ $labels.instance }}"
+          description: "Less than 10% of memory available for more than 5 minutes."
+
+  - name: blackbox_exporter_alerts
+    rules:
+      # Alert for API Unavailability
+      - alert: APIEndpointDown
+        expr: probe_success == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API Endpoint Down"
+          description: "The API endpoint at {{ $labels.instance }} is down."
+
+      # Alert for High Response Time
+      - alert: HighResponseTime
+        expr: probe_duration_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Response Time for {{ $labels.instance }}"
+          description: "The response time for {{ $labels.instance }} has been greater than 1 second for more than 5 minutes."

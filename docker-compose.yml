@@ -1,0 +1,127 @@
+x-app-environment: &appEnvironment
+  APP_NAME: ${APP_NAME}
+  APP_URL: ${APP_URL}
+  APP_KEY: ${APP_KEY}
+  APP_DEBUG: ${APP_DEBUG}
+  APP_ENV: ${APP_ENV}
+  DB_CONNECTION: ${DB_CONNECTION}
+  DB_HOST: ${DB_HOST}
+  DB_PORT: ${DB_PORT}
+  DB_DATABASE: ${DB_DATABASE}
+  DB_USERNAME: ${DB_USERNAME}
+  DB_PASSWORD: ${DB_PASSWORD}
+  SESSION_DRIVER: ${SESSION_DRIVER}
+  SESSION_LIFETIME: ${SESSION_LIFETIME}
+  SESSION_ENCRYPT: ${SESSION_ENCRYPT}
+  SESSION_PATH: ${SESSION_PATH}
+  SESSION_DOMAIN: ${SESSION_DOMAIN}
+  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION}
+  FILESYSTEM_DISK: ${FILESYSTEM_DISK}
+  QUEUE_CONNECTION: ${QUEUE_CONNECTION}
+
+x-database-environment: &databaseEnvironment
+  MYSQL_DATABASE: ${DB_DATABASE}
+  MYSQL_USER: ${DB_USERNAME}
+  MYSQL_PASSWORD: ${DB_PASSWORD}
+  MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+  SERVICE_TAGS: dev
+  SERVICE_NAME: mysql
+
+networks:
+  cicd:
+
+volumes:
+  db_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+services:
+  mysql:
+    image: mariadb:10.6
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    environment:
+      <<: [*databaseEnvironment]
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - cicd
+
+  app:
+    build:
+      context: .
+      dockerfile: php.dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./src:/var/www/html:delegated
+    networks:
+      - cicd
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: [*appEnvironment]
+
+  # Prometheus service
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./conf/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./conf/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+    ports:
+      - "9090:9090" # Expose Prometheus on port 9090
+    networks:
+      - cicd
+
+  # Grafana service
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000" # Expose Grafana on port 3000
+    networks:
+      - cicd
+    volumes:
+      - grafana_data
+
+  # Node Exporter service
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100" # Expose Node Exporter on port 9100
+    networks:
+      - cicd
+
+  # Blackbox Exporter service
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox-exporter
+    ports:
+      - "9115:9115" # Expose Blackbox Exporter on port 9115
+    networks:
+      - cicd
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    volumes:
+      - ./conf/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    ports:
+      - 9093:9093
+    networks:
+      - cicd
